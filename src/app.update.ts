@@ -14,24 +14,6 @@ import { AppService } from './app.service';
 import { showList } from './app.utils';
 import { Context, ITodo } from './app.interface';
 
-const todos: ITodo[] = [
-  {
-    id: 1,
-    name: 'Buy goods',
-    isCompleted: false,
-  },
-  {
-    id: 2,
-    name: 'Go to walk',
-    isCompleted: false,
-  },
-  {
-    id: 3,
-    name: 'Travel',
-    isCompleted: true,
-  },
-];
-
 @Update()
 export class AppUpdate {
   constructor(
@@ -46,7 +28,14 @@ export class AppUpdate {
 
   @Hears('📃 Список задач')
   async listTask(ctx: Context) {
+    const todos = await this.appService.getAll();
     await ctx.reply(showList(todos));
+  }
+
+  @Hears('🌀 Создать задачу')
+  async createTask(ctx: Context) {
+    await ctx.reply('Напишите название задачи: ');
+    ctx.session.type = 'create';
   }
 
   @Hears('✅ Завершить')
@@ -71,36 +60,40 @@ export class AppUpdate {
 
   @On('text')
   async getMessage(@Message('text') message: string, @Ctx() ctx: Context) {
-    let todo;
+    let todos;
     switch (ctx.session.type) {
-      case 'done':
-        todo = todos.find((t) => t.id === Number(message));
-        if (!todo) {
+      case 'create':
+        todos = await this.appService.createTask(message);
+        if (!todos) {
           await ctx.reply('Задачи с таким ID не найдено');
           return;
         }
-        todo.isCompleted = !todo.isCompleted;
+        await ctx.reply(showList(todos));
+        break;
+      case 'done':
+        todos = await this.appService.doneTask(Number(message));
+        if (!todos) {
+          await ctx.reply('Задачи с таким ID не найдено');
+          return;
+        }
         await ctx.reply(showList(todos));
         break;
       case 'edit':
         const [taskId, taskName] = message.split(' | ');
-        todo = todos.find((t) => t.id === Number(taskId));
-        if (!todo) {
+        todos = await this.appService.editTask(Number(taskId), taskName);
+        if (!todos) {
           await ctx.reply('Задачи с таким ID не найдено');
           return;
         }
-        todo.name = taskName;
         await ctx.reply(showList(todos));
         break;
       case 'delete':
-        todo = todos.find((t) => t.id === Number(message));
-        if (!todo) {
+        todos = await this.appService.deleteTask(Number(message));
+        if (!todos) {
           await ctx.reply('Задачи с таким ID не найдено');
           return;
         }
-        await ctx.reply(
-          showList(todos.filter((todo) => todo.id != Number(message))),
-        );
+        await ctx.reply(showList(todos));
         break;
       default:
         return;
